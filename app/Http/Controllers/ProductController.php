@@ -2,6 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\ProductResource;
+use App\Models\Category;
+use App\Models\Product;
+use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -14,7 +19,8 @@ class ProductController extends Controller
      */
     public function index()
     {
-        return Inertia::render('Product/Index');
+        $products = ProductResource::collection(Product::with('category')->get());
+        return Inertia::render('Product/Index', compact('products'));
     }
 
     /**
@@ -24,7 +30,8 @@ class ProductController extends Controller
      */
     public function create()
     {
-        //
+        $categories = Category::all();
+        return Inertia::render('Product/Create', compact('categories'));
     }
 
     /**
@@ -35,7 +42,28 @@ class ProductController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $request->validate([
+            'name' => ['required', 'min:3'],
+            'category_id' => ['required'],
+            'image' => ['required', 'image'],
+            'price' => ['required'],
+            'description' => ['required'],
+        ]);
+
+        if($request->hasFile('image')){
+            $image = $request->file('image')->store('products');
+            $trending = $request == TRUE ? '0' : '1';
+            Product::create([
+                'name' => $request->name,
+                'category_id' => $request->category_id,
+                'image' => $image,
+                'price' => $request->price,
+                'description' => $request->description,
+                'trending' => $trending
+            ]);
+            return Redirect::route('products.index')->with('message', 'Product created successfully.');
+        }
+        return Redirect::back();
     }
 
     /**
@@ -55,9 +83,10 @@ class ProductController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function edit($id)
+    public function edit(Product $product)
     {
-        //
+        $categories = Category::all();
+        return Inertia::render('Product/Edit', compact('product', 'categories'));
     }
 
     /**
@@ -67,9 +96,32 @@ class ProductController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, Product $product)
     {
-        //
+        $image = $product->image;
+        $request->validate([
+            'name' => ['required', 'min:3'],
+            'category_id' => ['required'],
+            'price' => ['required'],
+            'description' => ['required'],
+        ]);
+
+        if($request->hasFile('image')){
+            Storage::delete('image');
+            $image = $request->file('image')->store('products');
+            $trending = $request == TRUE ? '0' : '1';
+
+            $product->update([
+                'name' => $request->name,
+                'category_id' => $request->category_id,
+                'image' => $image,
+                'price' => $request->price,
+                'description' => $request->description,
+                'trending' => $trending
+            ]);
+            return Redirect::route('products.index')->with('message', 'Product update successfully.');
+        }
+        return Redirect::back();
     }
 
     /**
@@ -78,8 +130,11 @@ class ProductController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function destroy($id)
+    public function destroy(Product $product)
     {
-        //
+        Storage::delete($product->image);
+        $product->delete();
+        return Redirect::back()->with('message', 'Product deleted successfully.');
+
     }
 }
